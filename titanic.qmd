@@ -1,0 +1,178 @@
+---
+title: "Jack and Rosie"
+author: "အညာသား"
+format: html
+
+---
+
+# Importing dataset
+
+```{r}
+# Loading packages and dataset
+
+library(biostat3)
+library(tidyverse)
+library(broom)
+library(patchwork)
+
+tnic <- read_csv("data/titanic.csv")
+```
+
+```{r}
+tnic_final <- tnic %>% 
+  mutate(died = case_when(survived == 0 ~ 1,
+                          survived == 1 ~ 0)) %>% 
+  mutate(died_text = case_when(died == 1 ~ "died",
+                               died == 0 ~ "survived")) %>% 
+  mutate(died = factor(died))
+```
+
+```{r}
+# releveling class variable
+
+tnic_final$class <- relevel(factor(tnic_final$class), ref = "first class")
+
+```
+
+```{r}
+tnic_final %>% 
+  group_by(died) %>% 
+  count()
+```
+
+```{r}
+tnic_final %>% 
+  filter(class %in% c("first class", "second class", "third class")) %>% 
+  count()
+```
+
+
+```{r}
+tnic_percent <- tnic_final %>% 
+  filter(class %in% c("first class", "second class", "third class")) %>%
+  group_by(died, class, sex) %>% 
+  count() %>% 
+  ungroup() %>% 
+  mutate(total = sum(n),
+         percent = round(n/total*100,1))
+
+tnic_percent
+```
+```{r}
+tnic_final %>% 
+  filter(class %in% c("first class", "second class", "third class")) %>%
+  group_by(class) %>% 
+  count()
+```
+
+
+```{r}
+p1 <- tnic_final %>%
+  count(class, died_text, sex) %>%
+  mutate(class = reorder(class, n)) %>%
+  ggplot(aes(x = class, y = n)) +
+  geom_bar(aes(fill = sex), stat = "identity", width = 0.2) + 
+  facet_wrap(~died_text)+
+  scale_color_brewer(palette = "Set1") +
+  labs(title = "overall died vs survived", 
+       x = "Passengers & Crew",
+       y = "# of people") +
+  theme(plot.title = element_text(size = 11, face = "bold")) +
+  coord_flip() +
+  theme_minimal()
+```
+
+
+
+```{r}
+cbbPalette <- c( "#F0E442", "#009E73")
+
+p2 <- tnic_final %>% 
+  filter(class %in% c("first class", "second class", "third class")) %>%
+  ggplot(aes(x = sex, fill = died_text)) +
+  scale_fill_manual(values = cbbPalette) +
+  scale_color_brewer(palette = "Set1") +
+  labs(y = "# of people", x = NULL, fill = "Survival status", title = "gender & survival")+
+  geom_bar() +
+  facet_wrap(~class) +
+  theme_minimal()
+
+p2 
+```
+
+## Fare Vs Passenger class
+
+```{r}
+p3 <- fare_vs_class <- tnic_final %>% 
+  filter(class %in% c("first class", "second class", "third class")) %>% 
+  ggplot(aes(x = class, y = fare, color = class)) +
+  geom_boxplot() +
+  scale_color_brewer(palette = "Set1") +
+  labs(x= NULL, y = "Fare (£)", title = "classes & ticket prices") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+fare_vs_class
+```
+
+## age vs died
+
+```{r}
+p4 <- age_vs_died <- tnic_final %>% 
+  ggplot(aes(x = died_text, y = age)) +
+  geom_boxplot() +
+  labs(x= NULL, y = "age (yr)", title = "age & survival status") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+age_vs_died
+
+```
+
+
+```{r}
+plot1 <- p1 + p2 + p3 + p4 + plot_annotation(
+  title = "The sink of Titanic & the data behind", caption = "Graphics by: အညာသား"
+) & theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+
+plot1
+```
+
+```{r}
+ggsave("plot1.png", plot = plot1, width = 10, height = 6)
+```
+
+
+```{r}
+levels(tnic_final$died)
+```
+
+
+# fitting logistic regression
+
+```{r}
+tnic_pass <- tnic_final %>% 
+  filter(class %in% c("first class", "second class", "third class"))
+tnic_pass
+```
+
+
+```{r}
+
+tnic_model <- glm(died ~ class + sex, family = binomial(link = "logit"), data = tnic_pass)
+
+```
+
+```{r}
+tnic_model %>% 
+  tidy(conf.int = TRUE, conf.level = 0.95, exponentiate = TRUE)
+```
+
+```{r}
+tnic_model_i <- glm(died ~ class + sex + class*sex, family = binomial(link = "logit"), data = tnic_pass)
+
+tnic_model_i %>% 
+  tidy(conf.int = TRUE, conf.level = 0.95, exponentiate = TRUE)
+```
+
+
